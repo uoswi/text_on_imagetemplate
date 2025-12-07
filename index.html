@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Wedding Invitation Generator</title>
+  <style>
+    @font-face {
+      font-family: 'TheSeasons';
+      src: url('SVN-TheSeasons-BoldItalic.ttf') format('truetype');
+      font-weight: bold;
+      font-style: italic;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 500px;
+    }
+
+    h1 {
+      font-size: 1.2rem;
+      color: #333;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    input {
+      flex: 1;
+      padding: 14px 16px;
+      font-size: 16px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      border-color: #8B2942;
+    }
+
+    button {
+      padding: 14px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      color: white;
+      background: #8B2942;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      background: #6d2033;
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .preview-container {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 4px;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    .hint {
+      font-size: 0.85rem;
+      color: #666;
+      text-align: center;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Thiệp Mời Cưới</h1>
+
+    <div class="input-group">
+      <input
+        type="text"
+        id="guestName"
+        placeholder="Nhập tên khách mời..."
+        maxlength="50"
+        autocomplete="off"
+      >
+      <button id="generateBtn">Tạo</button>
+    </div>
+
+    <div class="preview-container">
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <p class="hint">Nhập tên và nhấn "Tạo" để chia sẻ thiệp mời</p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const input = document.getElementById('guestName');
+    const btn = document.getElementById('generateBtn');
+
+    const TEXT_COLOR = '#8B2942';
+    const TEXT_Y_POSITION = 0.552; // Relative position (fraction of image height)
+    const FONT_SIZE_RATIO = 0.038; // Font size relative to image width
+
+    let templateImg = null;
+    let fontLoaded = false;
+
+    // Load custom font
+    const font = new FontFace('TheSeasons', "url('SVN-TheSeasons-BoldItalic.ttf')");
+    font.load().then((loadedFont) => {
+      document.fonts.add(loadedFont);
+      fontLoaded = true;
+      if (templateImg) drawInvitation('');
+    }).catch(err => {
+      console.warn('Custom font failed to load, using fallback:', err);
+      fontLoaded = true;
+    });
+
+    // Load template image
+    templateImg = new Image();
+    templateImg.onload = () => {
+      canvas.width = templateImg.width;
+      canvas.height = templateImg.height;
+      drawInvitation('');
+    };
+    templateImg.src = 'invitation template.png';
+
+    function drawInvitation(name) {
+      if (!templateImg || !templateImg.complete) return;
+
+      // Fill white background first (prevents black border)
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw template
+      ctx.drawImage(templateImg, 0, 0);
+
+      // Draw guest name
+      if (name.trim()) {
+        const fontSize = Math.round(canvas.width * FONT_SIZE_RATIO);
+        ctx.font = `bold italic ${fontSize}px 'TheSeasons', 'Times New Roman', serif`;
+        ctx.fillStyle = TEXT_COLOR;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const x = canvas.width / 2;
+        const y = canvas.height * TEXT_Y_POSITION;
+
+        ctx.fillText(name.trim(), x, y);
+      }
+    }
+
+    async function generateAndShare() {
+      const name = input.value.trim();
+      if (!name) {
+        input.focus();
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Đang tạo...';
+
+      drawInvitation(name);
+
+      try {
+        const blob = await new Promise(resolve =>
+          canvas.toBlob(resolve, 'image/jpeg', 1.0)
+        );
+
+        const fileName = `invitation-${name.replace(/\s+/g, '-')}.jpg`;
+        const file = new File([blob], fileName, { type: 'image/jpeg' });
+
+        // Try Web Share API (mobile)
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Thiệp Mời Cưới',
+          });
+        } else {
+          // Fallback: download
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Share failed:', err);
+          alert('Không thể chia sẻ. Vui lòng thử lại.');
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Tạo';
+      }
+    }
+
+    btn.addEventListener('click', generateAndShare);
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') generateAndShare();
+    });
+  </script>
+</body>
+</html>
